@@ -41,14 +41,16 @@ function addBotMessage(htmlContent) {
 function cleanLatex(latex) {
   if (!latex) return "";
   latex = latex.trim();
-  if ((latex.startsWith("'''") && latex.endsWith("'''")) ||
-      (latex.startsWith('"""') && latex.endsWith('"""'))) {
-    latex = latex.slice(3, -3).trim();
-  } else if ((latex.startsWith('"') && latex.endsWith('"')) ||
-             (latex.startsWith("'") && latex.endsWith("'"))) {
-    latex = latex.slice(1, -1).trim();
-  }
-  return latex;
+
+  latex = latex.replace(/^'''|'''$/g, '')
+               .replace(/^"""/g, '')
+               .replace(/"""$/g, '')
+               .replace(/^'/, '')
+               .replace(/'$/, '')
+               .replace(/^"/, '')
+               .replace(/"$/, '');
+
+  return latex.trim();
 }
 
 uploadBox.addEventListener('click', () => imageInput.click());
@@ -81,6 +83,10 @@ imageInput.addEventListener('change', async (event) => {
     return;
   }
 
+  imagePreviewContainer.innerHTML = '';
+  const prevPreviewMessages = chatSection.querySelectorAll('.chat-message.predicted-preview');
+  prevPreviewMessages.forEach(msg => msg.remove());
+
   const reader = new FileReader();
   reader.onload = function(e) {
     uploadedImageURL = e.target.result;
@@ -102,10 +108,15 @@ imageInput.addEventListener('change', async (event) => {
 
     if (data.latex) {
       const cleaned = cleanLatex(data.latex);
-      addBotMessage(`<strong>Predicted Equation (Preview):</strong><br>$$${cleaned}$$`);
-    } else {
-      addBotMessage(`<strong>Predicted Equation:</strong> N/A`);
+      const htmlContent = `<strong>Predicted Equation (Preview):</strong><br>$$${cleaned}$$`;
+      const botMsg = document.createElement('div');
+      botMsg.className = 'chat-message bot predicted-preview';
+      botMsg.innerHTML = htmlContent;
+      chatSection.appendChild(botMsg);
+      renderMathInElement(botMsg);
+      chatSection.scrollTop = chatSection.scrollHeight;
     }
+
   } catch (err) {
     addBotMessage(`Failed to get equation preview: ${err.message}`);
   }
