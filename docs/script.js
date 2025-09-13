@@ -38,17 +38,22 @@ function addBotMessage(htmlContent) {
   chatSection.scrollTop = chatSection.scrollHeight;
 }
 
+function cleanLatex(latex) {
+  if (!latex) return "";
+  latex = latex.trim();
+  if ((latex.startsWith("'''") && latex.endsWith("'''")) ||
+      (latex.startsWith('"""') && latex.endsWith('"""'))) {
+    latex = latex.slice(3, -3).trim();
+  } else if ((latex.startsWith('"') && latex.endsWith('"')) ||
+             (latex.startsWith("'") && latex.endsWith("'"))) {
+    latex = latex.slice(1, -1).trim();
+  }
+  return latex;
+}
+
 uploadBox.addEventListener('click', () => imageInput.click());
-
-uploadBox.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  uploadBox.classList.add('dragover');
-});
-
-uploadBox.addEventListener('dragleave', () => {
-  uploadBox.classList.remove('dragover');
-});
-
+uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
 uploadBox.addEventListener('drop', (e) => {
   e.preventDefault();
   uploadBox.classList.remove('dragover');
@@ -87,12 +92,7 @@ imageInput.addEventListener('change', async (event) => {
   formData.append("file", file);
 
   try {
-    addBotMessage("Detecting LaTeX from uploaded image...");
-
-    const res = await fetch(`${API_BASE_URL}/predict/`, {
-      method: "POST",
-      body: formData
-    });
+    const res = await fetch(`${API_BASE_URL}/predict/`, { method: "POST", body: formData });
     const data = await res.json();
 
     if (data.error) {
@@ -101,12 +101,13 @@ imageInput.addEventListener('change', async (event) => {
     }
 
     if (data.latex) {
-      addBotMessage(`<strong>Predicted LaTeX (Preview):</strong><br>$$${data.latex}$$`);
+      const cleaned = cleanLatex(data.latex);
+      addBotMessage(`<strong>Predicted Equation (Preview):</strong><br>$$${cleaned}$$`);
     } else {
-      addBotMessage(`<strong>Predicted LaTeX:</strong> N/A`);
+      addBotMessage(`<strong>Predicted Equation:</strong> N/A`);
     }
   } catch (err) {
-    addBotMessage(`Failed to get LaTeX preview: ${err.message}`);
+    addBotMessage(`Failed to get equation preview: ${err.message}`);
   }
 });
 
@@ -133,15 +134,17 @@ solveBtn.addEventListener('click', async () => {
     }
 
     if (data.latex) {
-      addBotMessage(`<strong>Predicted LaTeX:</strong><br>$$${data.latex}$$`);
+      const cleanedLatex = cleanLatex(data.latex);
+      addBotMessage(`<strong>Predicted Equation:</strong><br>$$${cleanedLatex}$$`);
     } else {
-      addBotMessage(`<strong>Predicted LaTeX:</strong> N/A`);
+      addBotMessage(`<strong>Predicted Equation:</strong> N/A`);
     }
 
     if (data.steps && Array.isArray(data.steps)) {
       const stepsHtml = data.steps.map(s => {
-        const mathjax = s.mathjax || s.detail || "";
-        return `<li><strong>${s.step || ""}:</strong><br>${mathjax}</li>`;
+        const mathjaxRaw = s.mathjax || s.detail || "";
+        const mathjax = cleanLatex(mathjaxRaw);
+        return `<li><strong>${s.step || ""}:</strong><br>$$${mathjax}$$</li>`;
       }).join('');
       addBotMessage(`<strong>Step-by-Step Solution:</strong><ol>${stepsHtml}</ol>`);
     }
@@ -149,6 +152,7 @@ solveBtn.addEventListener('click', async () => {
     if (data.note) {
       addBotMessage(`<em>Note: ${data.note}</em>`);
     }
+
   } catch (err) {
     addBotMessage(`Failed to solve: ${err.message}`);
   } finally {
