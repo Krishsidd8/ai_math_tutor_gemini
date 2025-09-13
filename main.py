@@ -102,9 +102,25 @@ def get_image_bytes_and_mime(file_path: str):
     
     return img_bytes, mime_type
 
-def ocr_with_gemini(file_path: str) -> str:
+def ocr_with_gemini(img_input) -> str:
     try:
-        img_bytes, mime_type = get_image_bytes_and_mime(file_path)
+        if isinstance(img_input, str):
+            with open(img_input, "rb") as f:
+                img_bytes = f.read()
+            mime_type, _ = mimetypes.guess_type(img_input)
+
+        elif isinstance(img_input, bytes):
+            img_bytes = img_input
+            mime_type = "image/png"
+
+        elif isinstance(img_input, Image.Image):
+            buf = io.BytesIO()
+            img_input.save(buf, format="PNG")
+            img_bytes = buf.getvalue()
+            mime_type = "image/png"
+
+        else:
+            raise TypeError(f"Unsupported input type: {type(img_input)}")
 
         response = GEMINI_MODEL.generate_content(
             [
@@ -124,6 +140,7 @@ def ocr_with_gemini(file_path: str) -> str:
         )
 
         return response.text.strip() if response and response.text else ""
+
     except Exception as e:
         print("[ERROR] Gemini OCR failed:", e)
         return ""
