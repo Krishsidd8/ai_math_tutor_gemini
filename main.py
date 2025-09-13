@@ -1,7 +1,8 @@
-from PIL import Image
+from PIL import Image, ImageOps
 from fastapi import FastAPI, File, UploadFile
 import uvicorn
-import os, io, json, traceback, logging
+import os, io, json, traceback, logging, base64
+import numpy as np, cv2
 import google.generativeai as genai
 from sympy import sympify, simplify
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,7 +51,6 @@ async def solve(file: UploadFile = File(...)):
         logger.error(traceback.format_exc())
         return {"error": str(e)}
 
-
 # -------------------- CORS --------------------
 app.add_middleware(
     CORSMiddleware,
@@ -81,32 +81,67 @@ STEP_SCHEMA = {
     "required": ["steps"]
 }
 
+# -------------------- IMAGE PREPROCESSING --------------------
+def preprocess_image(img: Image.Image) -> bytes:
+    img = img.convert("L")
+    img = ImageOps.autocontrast(img, cutoff=1)
+    arr = np.array(img)
+    arr = cv2.adaptiveThreshold(arr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                cv2.THRESH_BINARY, 31, 10)
+    arr = cv2.medianBlur(arr, 3)
+    ok, buf = cv2.imencode(".png", arr)
+    return buf.tobytes() if ok else None
+
+# -------------------- OCR WITH GEMINI --------------------
 def ocr_with_gemini(img: Image.Image) -> str:
     logger.info("Calling Gemini for OCR Image => Latex...")
     try:
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        img_bytes = buf.getvalue()
+        img_bytes = preprocess_image(img)
+        if not img_bytes:
+            raise RuntimeError("Preprocessing failed")
 
-        response = GEMINI_MODEL.generate_multimodal(
-            prompt="Extract the LaTeX expression from this math image. Return only the LaTeX code, no extra text.",
-            image=img_bytes,
-            temperature=0,
+        SYSTEM_PROMPT = """
+        You are an OCR-to-LaTeX assistant. Extract all handwritten math equations.
+        Respond only in JSON with this schema:
+        {
+          "equations": ["<eqn1 LaTeX>", "<eqn2 LaTeX>", ...]
+        }
+        No commentary, no markdown fences, no extra text.
+        """
+
+        response = GEMINI_MODEL.generate_content(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": "Here is the math image.", "mime_type": "image/png", "data": img_bytes},
+            ],
+            generation_config={
+                "temperature": 0,
+                "max_output_tokens": 512,
+                "response_mime_type": "application/json",
+            }
         )
-        return response.text.strip()
+
+        # Try parsing JSON
+        try:
+            data = json.loads(response.text)
+            eqns = data.get("equations", [])
+            return " ".join(eqns).strip()
+        except Exception:
+            logger.warning("Response not JSON, returning raw text")
+            return response.text.strip()
 
     except Exception as e:
         logger.error("Gemini OCR failed:")
         logger.error(traceback.format_exc())
         return ""
 
+# -------------------- SOLVER --------------------
 def solve_with_gemini(latex_expr: str) -> list[dict]:
     logger.info("Calling Gemini for step-by-step solution...")
     prompt = (
-        "You are a math tutor. Given a math expression or equation in LaTeX, "
+        "You are a math tutor. Given a math expression in LaTeX, "
         "produce a clear, correct, step-by-step solution. "
-        "Only return JSON that matches the provided schema. "
-        "Avoid extra commentary. Keep steps concise but correct.\n\n"
+        "Return only JSON matching the schema. "
         f"LaTeX: {latex_expr}"
     )
     try:
@@ -120,11 +155,9 @@ def solve_with_gemini(latex_expr: str) -> list[dict]:
         )
         data = json.loads(response.text)
         steps = data.get("steps", [])
-        logger.info("Gemini returned valid response.")
         return [{"step": s.get("step", ""), "detail": s.get("detail", "")} for s in steps if isinstance(s, dict)]
-
     except Exception as e:
-        logger.error("Gemini call failed:")
+        logger.error("Gemini solve failed:")
         logger.error(traceback.format_exc())
         return [{"step": "AI solver unavailable", "detail": str(e)}]
 
@@ -139,7 +172,6 @@ def quick_sympy_steps(latex_expr: str) -> list[dict]:
             expr = sympify(latex_expr)
 
         simp = simplify(expr)
-        logger.info("SymPy simplification successful.")
         return [
             {"step": "Parse LaTeX", "detail": str(expr)},
             {"step": "Simplify",   "detail": str(simp)},
