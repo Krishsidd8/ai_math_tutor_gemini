@@ -88,17 +88,20 @@ def ocr_with_gemini(img: Image.Image) -> str:
         img.save(buf, format="PNG")
         img_bytes = buf.getvalue()
 
-        prompt = "Extract the LaTeX expression from this math image. Return only the LaTeX code, no extra text."
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "Extract the LaTeX expression from this math image. Return only the LaTeX code, no extra text."},
+                    {"type": "input_image", "image_bytes": img_bytes}
+                ]
+            }
+        ]
 
-        response = GEMINI_MODEL.generate_content(
-            [prompt],
-            multimodal_inputs=[{"image": img_bytes}],
-            generation_config={
-                "temperature": 0,
-            },
-        )
-        text = response.text.strip()
+        response = GEMINI_MODEL.chat(messages=messages, temperature=0)
+        text = response.output_text.strip()
         return text
+
     except Exception as e:
         logger.error("Gemini OCR failed:")
         logger.error(traceback.format_exc())
@@ -106,29 +109,27 @@ def ocr_with_gemini(img: Image.Image) -> str:
 
 def solve_with_gemini(latex_expr: str) -> list[dict]:
     logger.info("Calling Gemini for step-by-step solution...")
-    prompt = (
-        "You are a math tutor. Given a math expression or equation in LaTeX, "
-        "produce a clear, correct, step-by-step solution. "
-        "Only return JSON that matches the provided schema. "
-        "Avoid extra commentary. Keep steps concise but correct.\n\n"
-        f"LaTeX: {latex_expr}"
-    )
     try:
-        resp = GEMINI_MODEL.generate_content(
-            [prompt],
-            generation_config={
-                "response_mime_type": "application/json",
-                "response_schema": STEP_SCHEMA,
-                "temperature": 0.2,
-            },
-        )
-        data = json.loads(resp.text)
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text":
+                        "You are a math tutor. Given a math expression or equation in LaTeX, "
+                        "produce a clear, correct, step-by-step solution. "
+                        "Only return JSON that matches the provided schema. "
+                        "Avoid extra commentary. Keep steps concise but correct.\n\n"
+                        f"LaTeX: {latex_expr}"}
+                ]
+            }
+        ]
+
+        response = GEMINI_MODEL.chat(messages=messages, temperature=0.2)
+        data = json.loads(response.output_text)
         steps = data.get("steps", [])
         logger.info("Gemini returned valid response.")
-        return [
-            {"step": s.get("step", ""), "detail": s.get("detail", "")}
-            for s in steps if isinstance(s, dict)
-        ]
+        return [{"step": s.get("step", ""), "detail": s.get("detail", "")} for s in steps if isinstance(s, dict)]
+
     except Exception as e:
         logger.error("Gemini call failed:")
         logger.error(traceback.format_exc())
