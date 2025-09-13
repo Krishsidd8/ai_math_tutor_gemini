@@ -207,6 +207,9 @@ def solve_with_gemini(latex_expr: str) -> list[dict]:
 
 def quick_sympy_steps(latex_expr: str) -> list[dict]:
     logger.info("Attempting fallback using SymPy...")
+    if not latex_expr.strip():
+        logger.warning("Empty LaTeX input; cannot use SymPy.")
+        return [{"step": "No input available", "detail": "Cannot parse empty LaTeX expression."}]
     try:
         if "=" in latex_expr:
             lhs_txt, rhs_txt = latex_expr.split("=", 1)
@@ -218,7 +221,7 @@ def quick_sympy_steps(latex_expr: str) -> list[dict]:
         simp = simplify(expr)
         return [
             {"step": "Parse LaTeX", "detail": str(expr)},
-            {"step": "Simplify",   "detail": str(simp)},
+            {"step": "Simplify", "detail": str(simp)},
         ]
     except Exception as e:
         logger.error("SymPy simplification failed:")
