@@ -61,7 +61,7 @@ app.add_middleware(
 
 # -------------------- GEMINI SETUP --------------------
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-GEMINI_MODEL = genai.GenerativeModel("gemini-2.5-flash")
+GEMINI_MODEL = genai.GenerativeModel("gemini-2.5-pro")
 
 STEP_SCHEMA = {
     "type": "object",
