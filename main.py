@@ -83,14 +83,11 @@ STEP_SCHEMA = {
 
 # -------------------- IMAGE PREPROCESSING --------------------
 def preprocess_image(img: Image.Image) -> bytes:
-    img = img.convert("L")
+    img = img.convert("L")  # grayscale
     img = ImageOps.autocontrast(img, cutoff=1)
-    arr = np.array(img)
-    arr = cv2.adaptiveThreshold(arr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                cv2.THRESH_BINARY, 31, 10)
-    arr = cv2.medianBlur(arr, 3)
-    ok, buf = cv2.imencode(".png", arr)
-    return buf.tobytes() if ok else None
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 # -------------------- OCR WITH GEMINI --------------------
 def ocr_with_gemini(img: Image.Image) -> str:
