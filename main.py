@@ -39,6 +39,7 @@ async def solve(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
+
         try:
             latex = ocr_with_gemini(img) or ""
         except Exception as e:
@@ -47,29 +48,44 @@ async def solve(file: UploadFile = File(...)):
             note = "Gemini OCR unavailable (quota may be exceeded)."
 
         logger.info(f"Predicted LaTeX: {latex}")
-        try:
-            steps = solve_with_gemini(latex) if latex else []
-        except Exception as e:
-            logger.warning("Gemini solve failed (possibly quota exceeded): %s", e)
-            steps = []
-            if note:
-                note += " "
-            note += "Gemini solver unavailable (quota may be exceeded)."
+
+        steps = []
+        if latex:
+            try:
+                steps = solve_with_gemini(latex)
+            except Exception as e:
+                logger.warning("Gemini solver failed (possibly quota exceeded): %s", e)
+                if note:
+                    note += " "
+                note += "Gemini solver unavailable (quota may be exceeded)."
+
         if not steps:
             logger.info("Falling back to SymPy for solution steps.")
             steps = quick_sympy_steps(latex)
             if not note:
                 note = "SymPy fallback used."
-        logger.info(f"Steps returned: {len(steps)}")
+
+        def render_latex_mathjax(latex_code: str, display_mode: bool = True) -> str:
+            """Wrap LaTeX in MathJax delimiters for HTML rendering."""
+            if not latex_code.strip():
+                return ""
+            return f"$${latex_code}$$" if display_mode else f"${latex_code}$"
+
+        for step in steps:
+            step["mathjax"] = render_latex_mathjax(step.get("detail", ""), display_mode=True)
+
         response = {"latex": latex, "steps": steps}
         if note:
             response["note"] = note
+
+        logger.info(f"Returning {len(steps)} steps with MathJax rendering.")
         return response
 
     except Exception as e:
         logger.error("Error during /solve processing:")
         logger.error(traceback.format_exc())
         return {"error": str(e)}
+
 
 # -------------------- CORS --------------------
 app.add_middleware(
