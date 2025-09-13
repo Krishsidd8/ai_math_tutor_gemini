@@ -15,12 +15,28 @@ function updateToggleText() {
     ? '☀️ Light Mode'
     : '🌙 Dark Mode';
 }
-
 darkModeToggle.addEventListener('click', () => {
   body.classList.toggle('dark-mode');
   updateToggleText();
 });
 updateToggleText();
+
+function renderMathInElement(element) {
+  if (window.MathJax) {
+    MathJax.typesetPromise([element]).catch(err => {
+      console.error('MathJax typeset failed:', err.message);
+    });
+  }
+}
+
+function addBotMessage(htmlContent) {
+  const botMsg = document.createElement('div');
+  botMsg.className = 'chat-message bot';
+  botMsg.innerHTML = htmlContent;
+  chatSection.appendChild(botMsg);
+  renderMathInElement(botMsg);
+  chatSection.scrollTop = chatSection.scrollHeight;
+}
 
 uploadBox.addEventListener('click', () => imageInput.click());
 
@@ -43,7 +59,7 @@ uploadBox.addEventListener('drop', (e) => {
   }
 });
 
-imageInput.addEventListener('change', (event) => {
+imageInput.addEventListener('change', async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
@@ -66,24 +82,38 @@ imageInput.addEventListener('change', (event) => {
     imagePreviewContainer.innerHTML = `<img src="${uploadedImageURL}" alt="Uploaded Preview" />`;
   };
   reader.readAsDataURL(file);
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    addBotMessage("Detecting LaTeX from uploaded image...");
+
+    const res = await fetch(`${API_BASE_URL}/predict/`, {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      addBotMessage(`Error from backend: ${data.error}`);
+      return;
+    }
+
+    if (data.latex) {
+      addBotMessage(`<strong>Predicted LaTeX (Preview):</strong><br>$$${data.latex}$$`);
+    } else {
+      addBotMessage(`<strong>Predicted LaTeX:</strong> N/A`);
+    }
+  } catch (err) {
+    addBotMessage(`Failed to get LaTeX preview: ${err.message}`);
+  }
 });
 
-solveBtn.addEventListener('click', () => {
+solveBtn.addEventListener('click', async () => {
   const file = imageInput.files[0];
-
   if (!file) {
     alert("Please upload an image.");
-    return;
-  }
-
-  if (!file.type.startsWith("image/")) {
-    alert("The selected file is not an image.");
-    return;
-  }
-
-  const maxSizeMB = 5;
-  if (file.size > maxSizeMB * 1024 * 1024) {
-    alert(`File size exceeds ${maxSizeMB}MB.`);
     return;
   }
 
@@ -93,39 +123,36 @@ solveBtn.addEventListener('click', () => {
   solveBtn.disabled = true;
   solveBtn.textContent = "Solving...";
 
-  fetch(`${API_BASE_URL}/solve`, {
-    method: "POST",
-    body: formData,
-  })
-    .then(res => res.json())
-    .then(data => {
-      console.log("Backend response:", data);
+  try {
+    const res = await fetch(`${API_BASE_URL}/solve`, { method: "POST", body: formData });
+    const data = await res.json();
 
-      if (data.error) {
-        alert("Error from backend: " + data.error);
-        return;
-      }
+    if (data.error) {
+      addBotMessage(`Error from backend: ${data.error}`);
+      return;
+    }
 
-      if (!data.steps || !Array.isArray(data.steps)) {
-        alert("No steps found in backend response. Full response: " + JSON.stringify(data));
-        return;
-      }
+    if (data.latex) {
+      addBotMessage(`<strong>Predicted LaTeX:</strong><br>$$${data.latex}$$`);
+    } else {
+      addBotMessage(`<strong>Predicted LaTeX:</strong> N/A`);
+    }
 
-      const botMsg = document.createElement('div');
-      botMsg.className = 'chat-message bot';
-      botMsg.innerHTML = `
-        <strong>Predicted LaTeX:</strong> ${data.latex || "N/A"}<br/>
-        <strong>Step-by-Step Solution:</strong>
-        <ol>${data.steps.map(s => `<li>${s.step || ""}<br/><code>${s.detail || ""}</code></li>`).join('')}</ol>
-      `;
-      chatSection.appendChild(botMsg);
-      chatSection.scrollTop = chatSection.scrollHeight;
-    })
-    .catch(err => {
-      alert("Failed to solve: " + err);
-    })
-    .finally(() => {
-      solveBtn.disabled = false;
-      solveBtn.textContent = "Solve";
-    });
+    if (data.steps && Array.isArray(data.steps)) {
+      const stepsHtml = data.steps.map(s => {
+        const mathjax = s.mathjax || s.detail || "";
+        return `<li><strong>${s.step || ""}:</strong><br>${mathjax}</li>`;
+      }).join('');
+      addBotMessage(`<strong>Step-by-Step Solution:</strong><ol>${stepsHtml}</ol>`);
+    }
+
+    if (data.note) {
+      addBotMessage(`<em>Note: ${data.note}</em>`);
+    }
+  } catch (err) {
+    addBotMessage(`Failed to solve: ${err.message}`);
+  } finally {
+    solveBtn.disabled = false;
+    solveBtn.textContent = "Solve";
+  }
 });

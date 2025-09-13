@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Math Tutor</title>
   <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
   <header>
@@ -37,5 +39,24 @@
   </main>
 
   <script src="script.js"></script>
+
+  <script>
+    function renderMathInElement(element) {
+      if (window.MathJax) {
+        MathJax.typesetPromise([element]).catch(function(err){
+          console.error('MathJax typeset failed: ' + err.message);
+        });
+      }
+    }
+
+    const chatSection = document.getElementById('chatSection');
+    function addBotMessage(text) {
+      const div = document.createElement('div');
+      div.className = 'chat-message bot';
+      div.innerHTML = text;
+      chatSection.appendChild(div);
+      renderMathInElement(div);
+    }
+  </script>
 </body>
 </html>
