@@ -35,6 +35,7 @@ async def predict(file: UploadFile = File(...)):
 @app.post("/solve")
 async def solve(file: UploadFile = File(...)):
     logger.info("Received /solve request.")
+    note = ""
     try:
         contents = await file.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -43,17 +44,27 @@ async def solve(file: UploadFile = File(...)):
         except Exception as e:
             logger.warning("Gemini OCR failed (possibly quota exceeded): %s", e)
             latex = ""
+            note = "Gemini OCR unavailable (quota may be exceeded)."
+
         logger.info(f"Predicted LaTeX: {latex}")
         try:
             steps = solve_with_gemini(latex) if latex else []
         except Exception as e:
             logger.warning("Gemini solve failed (possibly quota exceeded): %s", e)
             steps = []
+            if note:
+                note += " "
+            note += "Gemini solver unavailable (quota may be exceeded)."
         if not steps:
             logger.info("Falling back to SymPy for solution steps.")
             steps = quick_sympy_steps(latex)
+            if not note:
+                note = "SymPy fallback used."
         logger.info(f"Steps returned: {len(steps)}")
-        return {"latex": latex, "steps": steps}
+        response = {"latex": latex, "steps": steps}
+        if note:
+            response["note"] = note
+        return response
 
     except Exception as e:
         logger.error("Error during /solve processing:")
