@@ -38,18 +38,25 @@ async def solve(file: UploadFile = File(...)):
     try:
         contents = await file.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
-        latex = ocr_with_gemini(img) or ""
+        try:
+            latex = ocr_with_gemini(img) or ""
+        except Exception as e:
+            logger.warning("Gemini OCR failed (possibly quota exceeded): %s", e)
+            latex = ""
         logger.info(f"Predicted LaTeX: {latex}")
-
-        steps = solve_with_gemini(latex)
+        try:
+            steps = solve_with_gemini(latex) if latex else []
+        except Exception as e:
+            logger.warning("Gemini solve failed (possibly quota exceeded): %s", e)
+            steps = []
         if not steps:
-            logger.warning("Gemini returned no steps. Falling back to SymPy.")
+            logger.info("Falling back to SymPy for solution steps.")
             steps = quick_sympy_steps(latex)
-
         logger.info(f"Steps returned: {len(steps)}")
         return {"latex": latex, "steps": steps}
+
     except Exception as e:
-        logger.error("Error during solve:")
+        logger.error("Error during /solve processing:")
         logger.error(traceback.format_exc())
         return {"error": str(e)}
 
