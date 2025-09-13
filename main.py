@@ -13,17 +13,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# -------------------- CHECKPOINT DOWNLOAD --------------------
-if not os.path.exists(checkpoint_path):
-    logger.info("Checkpoint not found. Downloading from Google Drive...")
-    try:
-        gdown.download(f"https://drive.google.com/uc?id={file_id}", checkpoint_path, quiet=False)
-        logger.info("Checkpoint downloaded successfully.")
-    except Exception as e:
-        logger.error(f"Failed to download checkpoint: {e}")
-        raise
-
-
 # -------------------- FASTAPI APP --------------------
 app = FastAPI()
 
