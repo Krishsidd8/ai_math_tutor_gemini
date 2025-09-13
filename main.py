@@ -6,6 +6,8 @@ import numpy as np, cv2
 import google.generativeai as genai
 from sympy import sympify, simplify
 from fastapi.middleware.cors import CORSMiddleware
+import base64
+import mimetypes
 
 # -------------------- LOGGING CONFIG --------------------
 logging.basicConfig(
@@ -90,46 +92,40 @@ def preprocess_image(img: Image.Image) -> bytes:
     return buf.getvalue()
 
 # -------------------- OCR WITH GEMINI --------------------
-def ocr_with_gemini(img: Image.Image) -> str:
-    logger.info("Calling Gemini for OCR Image => Latex...")
-    try:
-        img_bytes = preprocess_image(img)
-        if not img_bytes:
-            raise RuntimeError("Preprocessing failed")
+def get_image_bytes_and_mime(file_path: str):
+    with open(file_path, "rb") as f:
+        img_bytes = f.read()
+    
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if mime_type not in ["image/png", "image/jpeg"]:
+        raise ValueError(f"Unsupported image format: {mime_type}")
+    
+    return img_bytes, mime_type
 
-        SYSTEM_PROMPT = """
-        You are an OCR-to-LaTeX assistant. Extract all handwritten math equations.
-        Respond only in JSON with this schema:
-        {
-          "equations": ["<eqn1 LaTeX>", "<eqn2 LaTeX>", ...]
-        }
-        No commentary, no markdown fences, no extra text.
-        """
+def ocr_with_gemini(file_path: str) -> str:
+    try:
+        img_bytes, mime_type = get_image_bytes_and_mime(file_path)
 
         response = GEMINI_MODEL.generate_content(
             [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": "Here is the math image.", "mime_type": "image/png", "data": img_bytes},
-            ],
-            generation_config={
-                "temperature": 0,
-                "max_output_tokens": 512,
-                "response_mime_type": "application/json",
-            }
+                {
+                    "role": "user",
+                    "parts": [
+                        {"text": "Extract the handwritten math equation(s) from this image and convert them into LaTeX format. Only return valid LaTeX code."},
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": base64.b64encode(img_bytes).decode("utf-8"),
+                            }
+                        },
+                    ],
+                }
+            ]
         )
 
-        # Try parsing JSON
-        try:
-            data = json.loads(response.text)
-            eqns = data.get("equations", [])
-            return " ".join(eqns).strip()
-        except Exception:
-            logger.warning("Response not JSON, returning raw text")
-            return response.text.strip()
-
+        return response.text.strip() if response and response.text else ""
     except Exception as e:
-        logger.error("Gemini OCR failed:")
-        logger.error(traceback.format_exc())
+        print("[ERROR] Gemini OCR failed:", e)
         return ""
 
 # -------------------- SOLVER --------------------
