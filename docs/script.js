@@ -3,17 +3,19 @@ const API_BASE_URL = 'https://aimathtutorgemini-production.up.railway.app';
 const darkModeToggle = document.getElementById('darkModeToggle');
 const body = document.body;
 const imageInput = document.getElementById('imageInput');
-const solveBtn = document.getElementById('solveBtn');
+const solveBtn = document.createElement('button');
+solveBtn.id = "solveBtn";
+solveBtn.textContent = "Solve";
+solveBtn.style.display = "none";
+
 const chatSection = document.getElementById('chatSection');
 const uploadBox = document.getElementById('uploadBox');
 const imagePreviewContainer = document.getElementById('imagePreviewContainer');
-const spinner = document.getElementById('loadingSpinner');
-const previewContainer = document.getElementById('equationPreviewContainer');
-const preview = document.getElementById('equationPreview');
 
 let uploadedImageURL = null;
+let spinnerMsg = null;
+let equationMsg = null;
 
-// ----------------- Dark Mode Toggle -----------------
 function updateToggleText() {
   darkModeToggle.textContent = body.classList.contains('dark-mode')
     ? '☀️ Light Mode'
@@ -25,7 +27,6 @@ darkModeToggle.addEventListener('click', () => {
 });
 updateToggleText();
 
-// ----------------- Helpers -----------------
 function cleanLatex(latex) {
   if (!latex) return "";
   latex = latex.trim();
@@ -57,21 +58,9 @@ function addBotMessage(htmlContent) {
   chatSection.appendChild(botMsg);
   renderMathInElement(botMsg);
   chatSection.scrollTop = chatSection.scrollHeight;
+  return botMsg;
 }
 
-function showPredictedEquation(rawLatex) {
-  spinner.style.display = "none";
-
-  const latex = cleanLatex(rawLatex);
-  preview.innerHTML = `$$${latex}$$`;
-
-  previewContainer.style.display = "block";
-  solveBtn.style.display = "block";
-
-  renderMathInElement(preview);
-}
-
-// ----------------- Upload Handling -----------------
 uploadBox.addEventListener('click', () => imageInput.click());
 uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
 uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
@@ -102,13 +91,11 @@ imageInput.addEventListener('change', async (event) => {
     return;
   }
 
-  // Reset UI
   imagePreviewContainer.innerHTML = '';
-  previewContainer.style.display = "none";
+  if (spinnerMsg) spinnerMsg.remove();
+  if (equationMsg) equationMsg.remove();
   solveBtn.style.display = "none";
-  preview.innerHTML = "";
 
-  // Show image preview
   const reader = new FileReader();
   reader.onload = function(e) {
     uploadedImageURL = e.target.result;
@@ -116,10 +103,8 @@ imageInput.addEventListener('change', async (event) => {
   };
   reader.readAsDataURL(file);
 
-  // Show spinner
-  spinner.style.display = "block";
+  spinnerMsg = addBotMessage(`<div class="loading-spinner"></div>`);
 
-  // Fetch prediction from backend
   const formData = new FormData();
   formData.append("file", file);
 
@@ -128,25 +113,29 @@ imageInput.addEventListener('change', async (event) => {
     const data = await res.json();
 
     if (data.error) {
-      spinner.style.display = "none";
+      spinnerMsg.remove();
       addBotMessage(`Error from backend: ${data.error}`);
       return;
     }
 
     if (data.latex) {
-      showPredictedEquation(data.latex);
+      spinnerMsg.remove();
+      const latex = cleanLatex(data.latex);
+      equationMsg = addBotMessage(`<strong>Predicted Equation:</strong><br>$$${latex}$$`);
+
+      equationMsg.appendChild(solveBtn);
+      solveBtn.style.display = "block";
     } else {
-      spinner.style.display = "none";
+      spinnerMsg.remove();
       addBotMessage("No equation predicted.");
     }
 
   } catch (err) {
-    spinner.style.display = "none";
+    spinnerMsg.remove();
     addBotMessage(`Failed to get equation preview: ${err.message}`);
   }
 });
 
-// ----------------- Solve Button -----------------
 solveBtn.addEventListener('click', async () => {
   const file = imageInput.files[0];
   if (!file) {
@@ -172,8 +161,6 @@ solveBtn.addEventListener('click', async () => {
     if (data.latex) {
       const cleanedLatex = cleanLatex(data.latex);
       addBotMessage(`<strong>Predicted Equation:</strong><br>$$${cleanedLatex}$$`);
-    } else {
-      addBotMessage(`<strong>Predicted Equation:</strong> N/A`);
     }
 
     if (data.steps && Array.isArray(data.steps)) {
