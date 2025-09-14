@@ -185,6 +185,7 @@ main {
   display: grid;
   margin: 1em auto;
 }
+
 .loading-spinner:before {
   content: "";
   width: 30%;
@@ -192,8 +193,9 @@ main {
   border-radius: 50%;
   margin: auto auto 0;
   background: #CF4647;
-  animation: l9-0 0.5s cubic-bezier(0,800,1,800) infinite;
+  animation: l9-0 1.5s cubic-bezier(0, 0.8, 1, 0.8) infinite;
 }
+
 .loading-spinner:after {
   content: "";
   width: 100%;
@@ -201,12 +203,14 @@ main {
   margin: 0 auto auto;
   clip-path: polygon(50% -50%,100% 50%,50% 150%,0 50%);
   background: #524656;
-  animation: l9-1 0.5s linear infinite;
+  animation: l9-1 1.5s linear infinite;
 }
+
 @keyframes l9-0 {
   0%, 2% { transform: translateY(0%); }
   98%, to { transform: translateY(-20%); }
 }
+
 @keyframes l9-1 {
   0%, 5% { transform: rotate(0deg); }
   95%, to { transform: rotate(-60deg); }
