@@ -179,6 +179,14 @@ main {
   margin-bottom: 10px;
 }
 
+.loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100px;
+}
+
 .loader {
   height: 60px;
   aspect-ratio: 2;
