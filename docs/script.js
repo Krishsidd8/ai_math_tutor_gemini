@@ -7,9 +7,13 @@ const solveBtn = document.getElementById('solveBtn');
 const chatSection = document.getElementById('chatSection');
 const uploadBox = document.getElementById('uploadBox');
 const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+const spinner = document.getElementById('loadingSpinner');
+const previewContainer = document.getElementById('equationPreviewContainer');
+const preview = document.getElementById('equationPreview');
 
 let uploadedImageURL = null;
 
+// ----------------- Dark Mode Toggle -----------------
 function updateToggleText() {
   darkModeToggle.textContent = body.classList.contains('dark-mode')
     ? '☀️ Light Mode'
@@ -20,6 +24,23 @@ darkModeToggle.addEventListener('click', () => {
   updateToggleText();
 });
 updateToggleText();
+
+// ----------------- Helpers -----------------
+function cleanLatex(latex) {
+  if (!latex) return "";
+  latex = latex.trim();
+  return latex
+    .replace(/```latex/gi, '')
+    .replace(/```/g, '')
+    .replace(/^'''|'''$/g, '')
+    .replace(/^"""/, '')
+    .replace(/"""$/, '')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\blatex\b/gi, '')
+    .replace(/^\\+/, '')
+    .replace(/\\+$/, '')
+    .trim();
+}
 
 function renderMathInElement(element) {
   if (window.MathJax) {
@@ -38,21 +59,19 @@ function addBotMessage(htmlContent) {
   chatSection.scrollTop = chatSection.scrollHeight;
 }
 
-function cleanLatex(latex) {
-  if (!latex) return "";
-  latex = latex.trim();
-  latex = latex.replace(/```latex/gi, '')
-               .replace(/```/g, '');
-  latex = latex.replace(/^'''|'''$/g, '')
-               .replace(/^"""/, '')
-               .replace(/"""$/, '')
-               .replace(/^['"]|['"]$/g, '');
-  latex = latex.replace(/\blatex\b/gi, '');
-  latex = latex.replace(/^\\+/, '').replace(/\\+$/, '');
-  return latex.trim();
+function showPredictedEquation(rawLatex) {
+  spinner.style.display = "none";
+
+  const latex = cleanLatex(rawLatex);
+  preview.innerHTML = `$$${latex}$$`;
+
+  previewContainer.style.display = "block";
+  solveBtn.style.display = "block";
+
+  renderMathInElement(preview);
 }
 
-
+// ----------------- Upload Handling -----------------
 uploadBox.addEventListener('click', () => imageInput.click());
 uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
 uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
@@ -83,10 +102,13 @@ imageInput.addEventListener('change', async (event) => {
     return;
   }
 
+  // Reset UI
   imagePreviewContainer.innerHTML = '';
-  const prevPreviewMessages = chatSection.querySelectorAll('.chat-message.predicted-preview');
-  prevPreviewMessages.forEach(msg => msg.remove());
+  previewContainer.style.display = "none";
+  solveBtn.style.display = "none";
+  preview.innerHTML = "";
 
+  // Show image preview
   const reader = new FileReader();
   reader.onload = function(e) {
     uploadedImageURL = e.target.result;
@@ -94,6 +116,10 @@ imageInput.addEventListener('change', async (event) => {
   };
   reader.readAsDataURL(file);
 
+  // Show spinner
+  spinner.style.display = "block";
+
+  // Fetch prediction from backend
   const formData = new FormData();
   formData.append("file", file);
 
@@ -102,26 +128,25 @@ imageInput.addEventListener('change', async (event) => {
     const data = await res.json();
 
     if (data.error) {
+      spinner.style.display = "none";
       addBotMessage(`Error from backend: ${data.error}`);
       return;
     }
 
     if (data.latex) {
-      const cleaned = cleanLatex(data.latex);
-      const htmlContent = `<strong>Predicted Equation (Preview):</strong><br>$$${cleaned}$$`;
-      const botMsg = document.createElement('div');
-      botMsg.className = 'chat-message bot predicted-preview';
-      botMsg.innerHTML = htmlContent;
-      chatSection.appendChild(botMsg);
-      renderMathInElement(botMsg);
-      chatSection.scrollTop = chatSection.scrollHeight;
+      showPredictedEquation(data.latex);
+    } else {
+      spinner.style.display = "none";
+      addBotMessage("No equation predicted.");
     }
 
   } catch (err) {
+    spinner.style.display = "none";
     addBotMessage(`Failed to get equation preview: ${err.message}`);
   }
 });
 
+// ----------------- Solve Button -----------------
 solveBtn.addEventListener('click', async () => {
   const file = imageInput.files[0];
   if (!file) {

@@ -5,17 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Math Tutor</title>
   <link rel="stylesheet" href="style.css" />
-
   <script>
     window.MathJax = {
-      tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']],
-        displayMath: [['$$','$$'], ['\\[','\\]']]
-      },
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
       svg: { fontCache: 'global' }
     };
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 </head>
 <body>
   <header>
@@ -37,7 +33,15 @@
         <input type="file" id="imageInput" accept="image/*" hidden />
       </div>
       <div id="imagePreviewContainer"></div>
-      <button id="solveBtn">Solve Problem</button>
+
+      <div id="loadingSpinner" class="spinner" style="display: none;"></div>
+
+      <div id="equationPreviewContainer" style="display: none;">
+        <h3>Predicted Equation (Preview):</h3>
+        <div id="equationPreview"></div>
+      </div>
+
+      <button id="solveBtn" style="display: none;">Solve Problem</button>
     </section>
     
     <section class="chat-section" id="chatSection">
@@ -48,24 +52,5 @@
   </main>
 
   <script src="script.js"></script>
-
-  <script>
-    function renderMathInElement(element) {
-      if (window.MathJax) {
-        MathJax.typesetPromise([element]).catch(function(err){
-          console.error('MathJax typeset failed: ' + err.message);
-        });
-      }
-    }
-
-    const chatSection = document.getElementById('chatSection');
-    function addBotMessage(text) {
-      const div = document.createElement('div');
-      div.className = 'chat-message bot';
-      div.innerHTML = text;
-      chatSection.appendChild(div);
-      renderMathInElement(div);
-    }
-  </script>
 </body>
 </html>
