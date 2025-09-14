@@ -41,15 +41,14 @@ function addBotMessage(htmlContent) {
 function cleanLatex(latex) {
   if (!latex) return "";
   latex = latex.trim();
+  latex = latex.replace(/```latex/gi, '')
+               .replace(/```/g, '');
   latex = latex.replace(/^'''|'''$/g, '')
-               .replace(/^"""/g, '')
-               .replace(/"""$/g, '')
-               .replace(/^'/, '')
-               .replace(/'$/, '')
-               .replace(/^"/, '')
-               .replace(/"$/, '');
-
+               .replace(/^"""/, '')
+               .replace(/"""$/, '')
+               .replace(/^['"]|['"]$/g, '');
   latex = latex.replace(/\blatex\b/gi, '');
+  latex = latex.replace(/^\\+/, '').replace(/\\+$/, '');
   return latex.trim();
 }
 
