@@ -41,7 +41,6 @@ function addBotMessage(htmlContent) {
 function cleanLatex(latex) {
   if (!latex) return "";
   latex = latex.trim();
-
   latex = latex.replace(/^'''|'''$/g, '')
                .replace(/^"""/g, '')
                .replace(/"""$/g, '')
@@ -50,8 +49,10 @@ function cleanLatex(latex) {
                .replace(/^"/, '')
                .replace(/"$/, '');
 
+  latex = latex.replace(/\blatex\b/gi, '');
   return latex.trim();
 }
+
 
 uploadBox.addEventListener('click', () => imageInput.click());
 uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
