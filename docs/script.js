@@ -131,7 +131,7 @@ imageInput.addEventListener('change', async (event) => {
       solveBtn.style.display = "block";
     } else {
       spinnerMsg.remove();
-      addBotMessage("No equation predicted.");
+      addBotMessage("Exceeded Current Quota.");
     }
 
   } catch (err) {
